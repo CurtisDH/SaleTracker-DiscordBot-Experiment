@@ -13,7 +13,7 @@ Add the bot to your discord server
 !test -- reponds *only used this to troubleshoot*
 
 
-**Installed packages: ** Not sure which ones are specifically needed to run the project successfully so I've listed them all
+**Installed packages:** Not sure which ones are specifically needed to run the project successfully so I've listed them all
 
 yarl
 urllib3
