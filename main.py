@@ -1,6 +1,4 @@
 import os
-import time
-import timeit
 
 import discord
 import sys
@@ -99,6 +97,7 @@ def Initialise(fileName):
             mID = retrieval.read()
             mID = mID.split("\n")
             MessageID = mID[1]
+            retrieval.close()
         ###########################
 
         if str(payload.message_id) == str(MessageID):
@@ -107,6 +106,7 @@ def Initialise(fileName):
                     with open(pingListPath) as filecontents:
                         Content = str(filecontents.read())
                         Content = Content.split(" ")
+                        filecontents.close()
                         global IdExists
                         for userid in Content:
                             if str(userid) == str(payload.user_id):
@@ -214,6 +214,7 @@ def Initialise(fileName):
 
             # STILL WIP -- NEED TO IMPLEMENT USER PINGING
             if str.lower(message.content) == str.lower(prefix + "NotifyMe"):
+                print("notifyme")
                 await message.channel.send("SettingTimer...")
                 url = "https://www.whenisthenextsteamsale.com"
                 options = Options()
@@ -270,7 +271,21 @@ async def DelayedReply(timer, channeltoMessage):
     # await client.get_channel(852493411268165682).send("Test")
 
     # TODO read the data from the PingList and ping all the userID's contained.
-    await channeltoMessage.send("The Sale has begun!")
+    response = "The SteamSale Has begun! "
+    ###Retrieve Data from PingList###
+
+    with open(pingListPath) as pingList:
+        content = pingList.read()
+        content = content.split("\n")
+        pingList.close()
+        for userID in content:
+            print (userID)
+            response += f"<@{userID}>"
+
+    #################################
+
+
+    await channeltoMessage.send(response)
 
 
 if __name__ == '__main__':
