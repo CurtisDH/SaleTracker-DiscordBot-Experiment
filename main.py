@@ -7,6 +7,8 @@ import sys
 import requests
 import json
 
+import platform
+
 ###################################
 from bs4 import BeautifulSoup as bs
 from selenium import webdriver
@@ -15,13 +17,8 @@ from selenium.webdriver.firefox.options import Options
 
 import asyncio
 
-############Threading##############
-import logging
-import threading
-import time
-
-###################################
 config_name = "data.txt"
+pingList_name = "pingList.txt"
 prefix = "!"
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
@@ -29,7 +26,11 @@ elif __file__:
     application_path = os.path.dirname(__file__)
 
 configPath = os.path.join(application_path, config_name)
-geckoDriver = os.path.join(application_path, "geckodriver.exe")
+pingListPath = os.path.join(application_path, pingList_name)
+geckoDriver = os.path.join(application_path, "geckodriver.exe")  # Windows
+if str(platform.system()) == "Linux":
+    geckoDriver = os.path.join(application_path,
+                               "geckodriver")  # Linux says it was checking path for geckodriver -- added here regardless
 
 if not os.path.exists(configPath):
     with open(configPath, 'w') as f:
@@ -43,19 +44,20 @@ if not os.path.exists(configPath):
 
 def Initialise(fileName):
     print("Starting...")
-
+    global MessageID
     with open(fileName) as f:
         data = str(f.read())
         f.close()
         token_char_array = []
-        secondary_char_array = []
+        MessageID_char_array = []
         bToggle = False
         for i in data:
             if (bToggle):
                 if str(i) == "\n":
                     bToggle = not bToggle
                     continue
-                secondary_char_array.append(i)
+                MessageID_char_array.append(i)
+                MessageID = "".join(MessageID_char_array)
                 continue
             if str(i) == "\n":
                 bToggle = not bToggle
@@ -69,11 +71,12 @@ def Initialise(fileName):
         #     print(e)
 
     client = discord.Client()
-    #client.activity = discord.Activity(type=discord.ActivityType.watching,name="SteamSale is " + "test" + " Days away")
+
+    # client.activity = discord.Activity(type=discord.ActivityType.watching,name="SteamSale is " + "test" + " Days away")
     @client.event
     async def on_ready():
         print("OnReadyEvent")
-        servernamestr = ''.join(secondary_char_array)
+        servernamestr = ''.join(MessageID_char_array)
         for guild in client.guilds:
             if guild.name == servernamestr:
                 break
@@ -89,12 +92,43 @@ def Initialise(fileName):
         print("OnReactionAddEvent")
         if payload.user_id == client.user:
             return
-        print(payload.emoji)
-        print(payload.message_id)
-        if str(payload.message_id) == '852561831910178836':
-            await client.get_channel(payload.channel_id).send(f"Thanks for reacting <@{payload.user_id}>")
-        if str(payload.emoji) == "👍":
-            await client.get_channel(payload.channel_id).send("test")
+        # TODO load messageID from the txt file
+
+        ### MessageID Retrieval ###
+        with open(configPath) as retrieval:
+            mID = retrieval.read()
+            mID = mID.split("\n")
+            MessageID = mID[1]
+        ###########################
+
+        if str(payload.message_id) == str(MessageID):
+            if os.path.exists(pingListPath):
+                with open(pingListPath, 'a') as f:
+                    with open(pingListPath) as filecontents:
+                        Content = str(filecontents.read())
+                        Content = Content.split(" ")
+                        global IdExists
+                        for userid in Content:
+                            if str(userid) == str(payload.user_id):
+                                IdExists = False
+                                break
+                            if not IdExists:
+                                f.write("\n" + str(payload.user_id))
+                IdExists = True
+                f.close()
+            print(str(payload.member))
+            await payload.member.send(f"You will be pinged when the Sale begins! <@{payload.user_id}>")
+            if not os.path.exists(pingListPath):
+                with open(pingListPath, 'w') as f:
+                    f.write(str(payload.user_id))
+                f.close()
+            with open(pingListPath) as g:
+                content = str(g.read())
+                g.close()
+                content = content.split("\n")
+                print(content)
+        # if str(payload.emoji) == "👍":
+        #     await client.get_channel(payload.channel_id).send("test")
 
     # when a message is sent in the server
     @client.event
@@ -137,7 +171,8 @@ def Initialise(fileName):
                     break
                 await message.channel.send(embed=response)
 
-            if str.lower(message.content) == str.lower(prefix + "SteamSale"):
+            if ProcessedResponse == str.lower(prefix + "SteamSale"):
+                print("Searching...")
                 await message.channel.send("Searching...")
                 url = "https://www.whenisthenextsteamsale.com"
                 options = Options()
@@ -153,7 +188,7 @@ def Initialise(fileName):
                 for item in maintimer:
                     print(item.text)
                     mainResponse = item.text
-
+                browser.close()
                 response = discord.Embed(title="Next Steam sale",
                                          description=mainResponse + " days " + subResponse + " hours",
                                          color=0x00ff00
@@ -161,9 +196,23 @@ def Initialise(fileName):
                 print("sending response:" + mainResponse + " days " + subResponse + " hours")
 
                 await message.channel.send(embed=response)
+            if ProcessedResponse == str.lower(prefix + "prune"):
+                number = " "
+                try:
+                    number = message.content.split(" ", 1)[1]
+                except:
+                    print("Invalid number provided")
+                    await message.channel.send(ProcessedResponse + ":Invalid Number Provided")
+                msgs = []
+                number = int(number)
+                async for x in message.channel.history(limit=number):
+                    msgs.append(x)
+                # print(number)
+                # for m in msgs:
+                #     print(m.id)
+                await message.channel.purge(limit=number)
 
-
-            #STILL WIP -- NEED TO IMPLEMENT USER PINGING
+            # STILL WIP -- NEED TO IMPLEMENT USER PINGING
             if str.lower(message.content) == str.lower(prefix + "NotifyMe"):
                 await message.channel.send("SettingTimer...")
                 url = "https://www.whenisthenextsteamsale.com"
@@ -181,7 +230,7 @@ def Initialise(fileName):
                 for item in maintimer:
                     print(item.text)
                     mainResponse = item.text
-
+                browser.close()
                 TimeInHours = float(0)
                 # doing this by hand cause its getting late and im getting lazy
                 print(subResponse.split(":"))  # [0] [1] [2] should always have a value in them.
@@ -192,21 +241,36 @@ def Initialise(fileName):
 
                 days = float(mainResponse.split("days")[0])
                 if (days is not 0):
-                    TimeInHours += days*24
+                    TimeInHours += days * 24
                 print(TimeInHours)
                 TimeInSeconds = (TimeInHours * 60) * 60
-                print (TimeInSeconds)
-                await client.change_presence(status=discord.Status.idle, activity=discord.Game(name="SteamSale in " + str(int(TimeInHours / 24)) + " Days"))
-                asyncio.get_event_loop().create_task(DelayedReply(TimeInSeconds,message.channel))
+                print(TimeInSeconds)
+                await client.change_presence(status=discord.Status.idle, activity=discord.Game(
+                    name="SteamSale in " + str(int(TimeInHours / 24)) + " Days"))
+                asyncio.get_event_loop().create_task(DelayedReply(TimeInSeconds, message.channel))
+
     client.run(token_string)
 
 
 async def DelayedReply(timer, channeltoMessage):
-    await(channeltoMessage.send("Setting timer successfully set for: "+str(int((timer/60)/60))+" hours"))
+    await(channeltoMessage.send("Setting timer successfully set for: " + str(int((timer / 60) / 60)) + " hours"))
+    await channeltoMessage.send(content="If you'd like to get notified when the sale begins, react to this message")
+    async for msg in channeltoMessage.history(limit=1):
+        print("New Message ID:" + str(msg.id) + "Sent by:" + str(msg.author))
+    with open(configPath, 'r') as file:
+        data = file.read()
+        file.close()
+        with open(configPath, 'w') as writeOver:
+            response = data.split("\n", 1)[0] + "\n" + str(msg.id)
+            writeOver.write(response)
+            writeOver.close()
+
     await asyncio.sleep(timer)
     # print(client.get_channel(852493411268165682))
     # await client.get_channel(852493411268165682).send("Test")
-    await channeltoMessage.send("Test")
+
+    # TODO read the data from the PingList and ping all the userID's contained.
+    await channeltoMessage.send("The Sale has begun!")
 
 
 if __name__ == '__main__':

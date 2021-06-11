@@ -11,6 +11,8 @@ Add the bot to your discord server
 !whatis term --urban dictionary lookup
 !steamsale -- fetches when the next steam sale is
 !test -- reponds *only used this to troubleshoot*
+!prune (NUMBER) -- removes x amount of messages
+!notifyme -- scrapes the steamsale website and creates an in app timer- also sends a message to the discord channel, which if reacted to creates a list of users to ping once the timer reaches 0
 
 
 **Installed packages:** Not sure which ones are specifically needed to run the project successfully so I've listed them all
