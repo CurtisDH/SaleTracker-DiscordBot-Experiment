@@ -3,8 +3,13 @@
 **Usage**
 create a txt file named data at the path of main.py
 Line 1 should contain your bot token 
-line 2 server name that you're connecting the bot to (this can be left blank without errors (in my limited testing))
-
+line 2 should contain the MessageID (this is to add the user to the PingList)
+Line 3 Should contain the ChannelID of where the bot will send the message (Ensure the bot has permissions to send messages)
+-- **WARNING** -- as of current version the bot may error if you do not fill out the following lines--
+!notifyme -- command should automatically fill out Line 2 & 3 and generate the txt contents appropriately -- You may want to restart the bot after running this as the updateloop may already be one iteration behind
+LINE 1 - BOT TOKEN 
+LINE 2 - MESSAGEID
+LINE 3 - CHANNELID
 Add the bot to your discord server
 
 **Commands**
