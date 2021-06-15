@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup as bs
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
 ###################################
+from datetime import datetime
 
 import asyncio
 
@@ -48,6 +49,10 @@ class WebPageInformation:
         self.WebpageSource = Source
         self.TimeInHours = Time
 
+async def PrintWithTime(message):
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    print(f"{current_time} {message}")
 
 def Initialise(fileName):
     print("Starting...")
@@ -66,9 +71,9 @@ def Initialise(fileName):
     # client.activity = discord.Activity(type=discord.ActivityType.watching,name="SteamSale is " + "test" + " Days away")
     @client.event
     async def on_ready():
-        print("OnReadyEvent")
+        await PrintWithTime("OnReadyEvent")
         for guild in client.guilds:
-            print(
+            await PrintWithTime(
                 f'{client.user} is connected to the following guild:\n'
                 f'{guild.name}(id: {guild.id})'
             )
@@ -77,7 +82,7 @@ def Initialise(fileName):
 
     @client.event
     async def on_raw_reaction_add(payload):
-        print("OnReactionAddEvent")
+        await PrintWithTime("OnReactionAddEvent")
         if payload.user_id == client.user:
             return
         # TODO load messageID from the txt file
@@ -91,22 +96,22 @@ def Initialise(fileName):
         ###########################
 
         if str(payload.message_id) == str(MessageID):
+            global IdExists
+            IdExists = False
             if os.path.exists(pingListPath):
                 with open(pingListPath, 'a') as f:
                     with open(pingListPath) as filecontents:
                         Content = str(filecontents.read())
-                        Content = Content.split(" ")
+                        Content = Content.split("\n")
                         filecontents.close()
-                        global IdExists
                         for userid in Content:
                             if str(userid) == str(payload.user_id):
-                                IdExists = False
+                                IdExists = True
                                 break
-                            if not IdExists:
-                                f.write("\n" + str(payload.user_id))
-                IdExists = True
+                        if not IdExists:
+                            f.write("\n" + str(payload.user_id))
                 f.close()
-            print(str(payload.member))
+            await PrintWithTime(str(payload.member))
             await payload.member.send(f"You will be pinged when the Sale begins! <@{payload.user_id}>")
             if not os.path.exists(pingListPath):
                 with open(pingListPath, 'w') as f:
@@ -116,9 +121,12 @@ def Initialise(fileName):
                 content = str(g.read())
                 g.close()
                 content = content.split("\n")
-                print(content)
+                await PrintWithTime(content)
         # if str(payload.emoji) == "👍":
         #     await client.get_channel(payload.channel_id).send("test")
+
+
+
 
     # when a message is sent in the server
     @client.event
@@ -130,7 +138,7 @@ def Initialise(fileName):
             ###Test###
             if ProcessedResponse == str.lower(prefix + "Test"):
                 response = "Test Received"
-                print(response)
+                await PrintWithTime(response)
                 # x = threading.Thread(target=replyTimer,args=(3,message.channel))
                 # x.start()
                 # print("starting thread")
@@ -142,18 +150,18 @@ def Initialise(fileName):
                 try:
                     term = message.content.split(" ", 1)[1]
                 except:
-                    print("Split failed (probably contains empty) or no results were found")
+                    await PrintWithTime("Split failed (probably contains empty) or no results were found")
                     await message.channel.send("No results found for search term:'" + term + "'")
                 response = "No results found for search term: '" + term + "'"
-                print(term)
+                await PrintWithTime(term)
                 url = 'https://api.urbandictionary.com/v0/define?term={}'
                 r = requests.get(url.format(term))
                 args = message.content
-                print(args)
+                await PrintWithTime(args)
                 testing = json.dumps(r.json())
                 testing = json.loads(testing)
                 for thing in testing['list']:
-                    print(thing["definition"])
+                    await PrintWithTime(thing["definition"])
                     response = discord.Embed(title="Definition of " + term,
                                              description=thing["definition"],
                                              color=0x00ff00
@@ -163,7 +171,7 @@ def Initialise(fileName):
                 await message.channel.send(embed=response)
                 ###STEAMSALE###
             if ProcessedResponse == str.lower(prefix + "SteamSale"):
-                print("Searching...")
+                await PrintWithTime("Searching...")
                 await message.channel.send("Searching...")
                 url = "https://www.whenisthenextsteamsale.com"
                 WebsiteContent = await ScrapeWebsite(url, client)
@@ -174,7 +182,7 @@ def Initialise(fileName):
                                          description=f"{TimeInDays} days {TimeInHours} hours",
                                          color=0x00ff00
                                          )
-                print(f"sending response: {TimeInDays}  days {TimeInHours} hours")
+                await PrintWithTime(f"sending response: {TimeInDays}  days {TimeInHours} hours")
                 await message.channel.send(embed=response)
                 ###PRUNE###
             if ProcessedResponse == str.lower(prefix + "prune"):
@@ -182,7 +190,7 @@ def Initialise(fileName):
                 try:
                     number = message.content.split(" ", 1)[1]
                 except:
-                    print("Invalid number provided")
+                    await PrintWithTime("Invalid number provided")
                     await message.channel.send(ProcessedResponse + ":Invalid Number Provided")
                 msgs = []
                 number = int(number)
@@ -191,8 +199,7 @@ def Initialise(fileName):
                 await message.channel.purge(limit=number)
                 ###NOTIFYME###
             if str.lower(message.content) == str.lower(prefix + "NotifyMe"):
-                print("notifyme")
-                await message.channel.send("SettingTimer...")
+                await PrintWithTime("notifyme")
                 url = "https://www.whenisthenextsteamsale.com"
                 WebsiteInfo = await ScrapeWebsite(url, client)
                 TimeInHours = int(float(WebsiteInfo.TimeInHours))
@@ -204,7 +211,7 @@ def Initialise(fileName):
 
 
 async def ScrapeWebsite(url, client):
-    print("Updating Status...")
+    await PrintWithTime("Updating Status...")
     options = Options()
     options.add_argument("--headless")
     browser = webdriver.Firefox(options=options, executable_path=geckoDriver)
@@ -229,13 +236,13 @@ async def ScrapeWebsite(url, client):
     days = float(mainResponse.split("days")[0])
     if days is not 0:
         TimeInHours += days * 24
-    print(f"Updating Client Status {str(int(float(TimeInHours / 24)))}")
+    await PrintWithTime(f"Updating Client Status {str(int(float(TimeInHours / 24)))}")
     await client.change_presence(status=discord.Status.idle, activity=discord.Game(
         name="SteamSale in " + str(int(float(TimeInHours / 24))) + " Days"))
     relevantInformation = WebPageInformation(Source=str(browser.page_source), Time=str(int(TimeInHours)))
     browser.close()
     await WriteToFile(hoursRemainingPath, (str(TimeInHours)))
-    print(await ReadLineFromFile(hoursRemainingPath, 0))
+    await PrintWithTime(await ReadLineFromFile(hoursRemainingPath, 0))
     return relevantInformation
 
 
@@ -270,14 +277,14 @@ async def AppendSpecificFileLine(filePath, LineToChange, contentToWrite):
         for i in range(LineToChange):
             if str(i) is not str(LineToChange):
                 response += data[i] + "\n"
-                print(response)
+                await PrintWithTime(response)
 
 
 async def SendReactMessageAndUpdateDataConfig(timer, channeltoMessage):
-    #await(channeltoMessage.send("Setting timer successfully set for: " + str(int((timer / 60) / 60)) + " hours"))
+    # await(channeltoMessage.send("Setting timer successfully set for: " + str(int((timer / 60) / 60)) + " hours"))
     await channeltoMessage.send(content="If you'd like to get notified when the sale begins, react to this message")
     async for msg in channeltoMessage.history(limit=1):
-        print("New Message ID:" + str(msg.id) + "Sent by:" + str(msg.author))
+        await PrintWithTime("New Message ID:" + str(msg.id) + "Sent by:" + str(msg.author))
     with open(configPath, 'r') as file:
         data = file.read()
         file.close()
@@ -288,7 +295,7 @@ async def SendReactMessageAndUpdateDataConfig(timer, channeltoMessage):
 
 
 async def SetTimer(timer, channeltoMessage):
-    print("ALERT: Timer has been Set! " + str(timer / 3600) + " Hours remaining!")
+    await PrintWithTime("ALERT: Timer has been Set! " + str(timer / 3600) + " Hours remaining!")
     await asyncio.sleep(timer)
     response = "The SteamSale Has begun! "
     ###Retrieve Data from PingList###
@@ -298,7 +305,7 @@ async def SetTimer(timer, channeltoMessage):
         content = content.split("\n")
         pingList.close()
         for userID in content:
-            print(userID)
+            await PrintWithTime(userID)
             response += f"<@{userID}>"
 
     #################################
@@ -317,13 +324,13 @@ async def UpdateTimerLoop(FrequencyInSeconds, url, client):
         # await Channel.send("UpdateTimerLoop")
         HoursRemaining = await ReadLineFromFile(hoursRemainingPath, 0)
         HoursRemaining = int(float(HoursRemaining))
-        print(f"UpdateTimer: Hours Remaining: {HoursRemaining}")
+        await PrintWithTime(f"UpdateTimer: Hours Remaining: {HoursRemaining}")
         # HoursRemaining = 3 # DON'T FORGET TO COMMENT OR REMOVE THIS LINE
         if HoursRemaining - int(FrequencyInSeconds / 3600) <= 0:
             break
-        print(f"Next update in:{int(FrequencyInSeconds / 3600)} hours")
+        await PrintWithTime(f"Next update in:{int(FrequencyInSeconds / 3600)} hours")
         await asyncio.sleep(FrequencyInSeconds)
-    print("While Loop Broken, Attempting to Set timer")
+    await PrintWithTime("While Loop Broken, Attempting to Set timer")
     await SetTimer((HoursRemaining * 60) * 60, Channel)
 
 
