@@ -49,10 +49,12 @@ class WebPageInformation:
         self.WebpageSource = Source
         self.TimeInHours = Time
 
+
 async def PrintWithTime(message):
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     print(f"{current_time} {message}")
+
 
 def Initialise(fileName):
     print("Starting...")
@@ -124,9 +126,6 @@ def Initialise(fileName):
                 await PrintWithTime(content)
         # if str(payload.emoji) == "👍":
         #     await client.get_channel(payload.channel_id).send("test")
-
-
-
 
     # when a message is sent in the server
     @client.event
@@ -229,12 +228,20 @@ async def ScrapeWebsite(url, client):
     # doing this by hand cause its getting late and im getting lazy
     # print(subResponse.split(":"))  # [0] [1] [2] should always have a value in them.
     splitResponse = subResponse.split(":")
-    TimeInHours += ((float(splitResponse[0])))
-    TimeInHours += float(splitResponse[1]) / 60
-    TimeInHours += ((float(splitResponse[2]) / 60) / 60)
+    if not splitResponse[0]:  # At the 100 hourish mark the website changes how the time is displayed so it breaks
+        await PrintWithTime(f"If Not SplitResponse '{splitResponse[0]}'")
+        splitResponse = mainResponse.split(":")  # instead of checking the sub response we now have to check the main
+        days = float(splitResponse[0]) / 24
+        TimeInHours += float(splitResponse[0])
+        TimeInHours += float(splitResponse[1]) / 60
+        print(TimeInHours)
+    else:
+        TimeInHours += (float(splitResponse[0]))
+        TimeInHours += float(splitResponse[1]) / 60
+        TimeInHours += ((float(splitResponse[2]) / 60) / 60)
+        days = float(mainResponse.split("days")[0])
 
-    days = float(mainResponse.split("days")[0])
-    if days is not 0:
+    if days is not 0 and not subResponse.split(":"):
         TimeInHours += days * 24
     await PrintWithTime(f"Updating Client Status {str(int(float(TimeInHours / 24)))}")
     await client.change_presence(status=discord.Status.idle, activity=discord.Game(
