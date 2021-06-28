@@ -13,7 +13,8 @@ from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
 ###################################
 from datetime import datetime
-
+import youtube_dl
+from youtube_search import YoutubeSearch
 import asyncio
 
 config_name = "data.txt"
@@ -87,7 +88,6 @@ def Initialise(fileName):
         await PrintWithTime("OnReactionAddEvent")
         if payload.user_id == client.user:
             return
-        # TODO load messageID from the txt file
 
         ### MessageID Retrieval ###
         with open(configPath) as retrieval:
@@ -134,16 +134,40 @@ def Initialise(fileName):
             return
         ProcessedResponse = str.lower(message.content.split(" ", 1)[0])
         if message.content.startswith(prefix):
-            ###Test###
-            if ProcessedResponse == str.lower(prefix + "Test"):
-                response = "Test Received"
-                await PrintWithTime(response)
-                # x = threading.Thread(target=replyTimer,args=(3,message.channel))
-                # x.start()
-                # print("starting thread")
-                # asyncio.get_event_loop().create_task(SendReactMessageAndUpdateDataConfig(3, message.channel))
+            #########Play#########
+            if ProcessedResponse == str.lower(prefix + "Play"):
+                url = "https://www.youtube.com/watch?v={}"
+                SearchTerm = str.lower(message.content).split(f"{prefix}play", 1)[1]
+                print(SearchTerm)
+                results = YoutubeSearch(SearchTerm, max_results=1).to_json()
+                results = json.loads(results)
+                videoID = results['videos'][0]['id']
+                url = url.format(videoID)
+                response = f"Playing {results['videos'][0]['title']}"  # TODO Format nicely with the embed system
+                VidInfo = results["videos"][0]
+                response = discord.Embed(title="Playing: " + VidInfo['title'],
+                                         description=f"Duration: {VidInfo['duration']}\n"
+                                                     f"Views: {VidInfo['views']}\n"
+                                                     f"Publish Date: {VidInfo['publish_time']}\n"
+                                                     f"https://www.youtube.com{VidInfo['url_suffix']}\n"
+                                                     f"Channel: {VidInfo['channel']}",
+                                         color=0x00ff00
+                                         )
+                await message.channel.send(embed=response)
+                asyncio.get_event_loop().create_task(PlaySong(client, url, message))
+                # await PlaySong(client, url, message)
+                # await message.channel.send("\n" + response)
+            #########Stop#########
+            if ProcessedResponse == str.lower(prefix + "Stop"):
+                response = "Stopping Music"
+                try:
+                    voice_clients = client.voice_clients[0]
+                    voice_clients.stop()
+                    await voice_clients.disconnect()
+                except:
+                    await PrintWithTime("Stop Request failed. Is voice_clients null?")
                 await message.channel.send("\n" + response)
-
+            # TODO Pause & Resume
             if ProcessedResponse == str.lower(prefix + "Whatis"):
                 term = ""
                 try:
@@ -165,7 +189,6 @@ def Initialise(fileName):
                                              description=thing["definition"],
                                              color=0x00ff00
                                              )
-                    # response = thing["definition"]
                     break
                 await message.channel.send(embed=response)
                 ###STEAMSALE###
@@ -231,6 +254,13 @@ async def ScrapeWebsite(url, client):
     if not splitResponse[0]:  # At the 100 hourish mark the website changes how the time is displayed so it breaks
         await PrintWithTime(f"If Not SplitResponse '{splitResponse[0]}'")
         splitResponse = mainResponse.split(":")  # instead of checking the sub response we now have to check the main
+        await PrintWithTime(splitResponse[0])
+        if not splitResponse[0]:  # once the sale starts no data is provided
+            await PrintWithTime("Sale has started or site has gone down")
+            await client.change_presence(status=discord.Status.idle, activity=discord.Game(
+                name="SteamSale has started"))
+            browser.close()
+            return
         days = float(splitResponse[0]) / 24
         TimeInHours += float(splitResponse[0])
         TimeInHours += float(splitResponse[1]) / 60
@@ -320,14 +350,23 @@ async def SetTimer(timer, channeltoMessage):
     await channeltoMessage.send(response)
 
 
+async def GetChannelFromID(client):
+    id = await ReadLineFromFile(configPath, 2)
+    id = int(id)
+    Channel = client.get_channel(id)
+    return Channel
+
+
 async def UpdateTimerLoop(FrequencyInSeconds, url, client):
     global HoursRemaining
     global Channel
+    # await PlaySong(client,url)
     while True:
         await ScrapeWebsite(url=url, client=client)
-        channelID = await ReadLineFromFile(configPath, 2)
-        channelID = int(channelID)
-        Channel = client.get_channel(channelID)
+        # channelID = await ReadLineFromFile(configPath, 2)
+        # channelID = int(channelID)
+        # Channel = client.get_channel(channelID)
+        Channel = await GetChannelFromID(client)
         # await Channel.send("UpdateTimerLoop")
         HoursRemaining = await ReadLineFromFile(hoursRemainingPath, 0)
         HoursRemaining = int(float(HoursRemaining))
@@ -339,6 +378,57 @@ async def UpdateTimerLoop(FrequencyInSeconds, url, client):
         await asyncio.sleep(FrequencyInSeconds)
     await PrintWithTime("While Loop Broken, Attempting to Set timer")
     await SetTimer((HoursRemaining * 60) * 60, Channel)
+
+
+async def PlaySong(client, url: str, message):  # TODO add a queuing system && Implement Spotify
+    song_exists = os.path.exists("song.mp3")
+    try:
+        if client.voice_clients[0]:
+            client.voice_clients[0].stop()
+            await client.voice_clients[0].disconnect()
+            # channel = await GetChannelFromID(message)
+    except:
+        await PrintWithTime("Cannot Disconnect this Client is it already disconnected?")
+    if song_exists:
+        await asyncio.sleep(3)
+        os.remove("song.mp3")
+
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': "song.mp3",
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+    }
+    video_url = url
+    vc = await FindVoiceChannelFromUserMessage(client, message)
+    if vc is not None:
+        await vc.connect()
+    try:
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
+    except:
+        print("exceptstatement")
+        os.system(f"""youtube-dl -o "song.%(ext)s" --extract-audio -x --audio-format mp3 {video_url}""")
+    print(client.voice_clients)
+    client.voice_clients[0].play(discord.FFmpegPCMAudio("song.mp3"))
+
+
+async def FindVoiceChannelFromUserMessage(client, message):
+    channelID = await GetChannelFromID(client)
+    VoiceState = message.author.voice
+    try:
+        print(VoiceState)
+        print(VoiceState.channel)
+        print(VoiceState.channel.id)
+    except:
+        await channelID.send("You must be connected to a voice channel")
+        return None
+    # print(VoiceState.id)
+    # print(VoiceState.VoiceChannel_id)
+    return VoiceState.channel
 
 
 if __name__ == '__main__':
