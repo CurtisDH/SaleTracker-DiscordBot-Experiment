@@ -304,8 +304,10 @@ async def ScrapeWebsite(url, client):
         TimeInHours += float(splitResponse[1]) / 60
         TimeInHours += ((float(splitResponse[2]) / 60) / 60)
         days = float(mainResponse.split("days")[0])
+        print(f"Days:{days}")
 
-    if days is not 0 and not subResponse.split(":"):
+    if days != 0 and subResponse.split(":")[0]:
+        await PrintWithTime("days != 0 & subResponse is not none")
         TimeInHours += days * 24
     await PrintWithTime(f"Updating Client Status {str(int(float(TimeInHours / 24)))}")
     await client.change_presence(status=discord.Status.idle, activity=discord.Game(
@@ -415,7 +417,8 @@ async def UpdateTimerLoop(FrequencyInSeconds, url, client):
         HoursRemaining = await ReadLineFromFile(hoursRemainingPath, 0)
         HoursRemaining = int(float(HoursRemaining))
         await PrintWithTime(f"UpdateTimer: Hours Remaining: {HoursRemaining}")
-        # HoursRemaining = 3 # DON'T FORGET TO COMMENT OR REMOVE THIS LINE
+        if HoursRemaining >= 24:
+            FrequencyInSeconds = 24 * 3600
         if HoursRemaining - int(FrequencyInSeconds / 3600) <= 0:
             break
         await PrintWithTime(f"Next update in:{int(FrequencyInSeconds / 3600)} hours")
@@ -424,7 +427,7 @@ async def UpdateTimerLoop(FrequencyInSeconds, url, client):
     await SetTimer((HoursRemaining * 60) * 60, Channel)
 
 
-async def PlaySong(client, url: str, message):  # TODO add a queuing system && Implement Spotify
+async def PlaySong(client, url: str, message):  # TODO Implement Spotify streaming
     song_exists = os.path.exists("song.mp3")
 
     if song_exists:
