@@ -17,10 +17,13 @@ import youtube_dl
 from youtube_search import YoutubeSearch
 import asyncio
 
+from mtranslate import translate
+
 config_name = "data.txt"
 pingList_name = "pingList.txt"
 hoursRemaining_name = "hoursRemaining.txt"
 QueuedSongs_Name = "Queue.txt"
+LanguageHelper_name = "languageHelper.txt"
 prefix = "!"
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
@@ -29,6 +32,7 @@ elif __file__:
 QueuedSongsPath = os.path.join(application_path, QueuedSongs_Name)
 configPath = os.path.join(application_path, config_name)
 pingListPath = os.path.join(application_path, pingList_name)
+LanguageHelperPath = os.path.join(application_path,LanguageHelper_name)
 geckoDriver = os.path.join(application_path, "geckodriver.exe")  # Windows
 hoursRemainingPath = os.path.join(application_path, hoursRemaining_name)
 if str(platform.system()) == "Linux":
@@ -56,6 +60,14 @@ async def PrintWithTime(message):
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     print(f"{current_time} {message}")
+
+
+async def CheckIfFileExists(path):
+    if not os.path.exists(path):
+        with open(path, 'w') as file:
+            file.write("File Doesnt exist. If you're trying to use !translate help please see: \n"
+                       "https://developers.google.com/admin-sdk/directory/v1/languages \n"
+                       "To populate manually with relevant information")
 
 
 def Initialise(fileName):
@@ -240,6 +252,33 @@ def Initialise(fileName):
                     await PrintWithTime("Invalid number provided")
                     await message.channel.send(ProcessedResponse + ":Invalid Number Provided")
                 await PruneMessages(number, message)
+                ###TRANSLATE###
+            if ProcessedResponse == str.lower(prefix + "Translate"):
+                msg = " "
+                abbreviation = " "
+                await CheckIfFileExists(LanguageHelperPath)
+                try:
+                    msg = message.content.split(" ", 1)[1]
+                    if(str.lower(msg) == str.lower("help")):
+                        embededMessage = await ReadAllLinesInFile(LanguageHelperPath)
+                        temp = ""
+                        for messages in embededMessage:
+                            temp += messages+"\n"
+                        embededMessage = discord.Embed(title=f"Available Prefixes for Languages:",
+                                                 description=f"{temp}",
+                                                 color=0xff9900)
+                        await message.channel.send(embed=embededMessage)
+                        return
+                    abbreviation = (message.content.split(" ",2))[1]
+                    print(abbreviation)
+                    print(msg)
+                except:
+                    await PrintWithTime("Translate:: Invalid Message Provided")
+                    await message.channel.send(ProcessedResponse + ":Invalid Message")
+                    return
+                await PrintWithTime(f"msg::{msg}")
+                msg = translate(to_translate=msg, to_language=abbreviation)
+                await message.channel.send(msg)
                 ###NOTIFYME###
             if str.lower(message.content) == str.lower(prefix + "NotifyMe"):
                 await PrintWithTime("notifyme")
@@ -317,6 +356,13 @@ async def ScrapeWebsite(url, client):
     await WriteToFile(hoursRemainingPath, (str(TimeInHours)))
     await PrintWithTime(await ReadLineFromFile(hoursRemainingPath, 0))
     return relevantInformation
+
+async def ReadAllLinesInFile(filepath):
+    with open(filepath,'r') as file:
+        data = file.read()
+        file.close()
+        data = data.split("\n")
+        return data
 
 
 async def ReadLineFromFile(filePath, desiredLineNumber):
